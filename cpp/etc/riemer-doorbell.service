@@ -1,0 +1,10 @@
+[Unit]
+Description=Riemer Doorbell
+After=network.target
+
+[Service]
+WorkingDirectory=/home/pi/riemer-doorbell/cpp/build-rpi
+ExecStart=/home/pi/riemer-doorbell/cpp/build-rpi/riemer-doorbell
+
+[Install]
+WantedBy=multi-user.target
