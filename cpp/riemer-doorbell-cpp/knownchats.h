@@ -4,6 +4,11 @@
 #include <cstdint>
 #include <set>
 
+#include <tgbot/tgbot.h>
+
+/**
+ * @brief Stores & restores chats that want the notifications
+ */
 class KnownChats {
 public:
   typedef std::int64_t TelegramChatId;
@@ -15,20 +20,21 @@ public:
   typedef Container::const_iterator Iterator;
 
 public:
-  KnownChats();
+  KnownChats(const TgBot::Bot &bot);
 
   void add(TelegramChatId chatId);
   void remove(TelegramChatId chatId);
 
+  void broadcast(const std::string &msg) const;
+
   bool empty() const { return known.empty(); }
-  Iterator begin() const { return known.begin(); }
-  Iterator end() const { return known.end(); }
 
 private:
   void save();
 
 private:
   Container known;
+  const TgBot::Bot &bot;
 };
 
 #endif // KNOWNCHATS_H

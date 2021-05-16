@@ -3,13 +3,23 @@
 
 #include <boost/filesystem.hpp>
 
+/**
+ * @brief A single GPIO pin that may be polled.
+ */
 class GPIOPin {
 public:
   GPIOPin(int num);
 
+  /**
+   * @brief Reads the current value from the /sys filesystem
+   * @return State of the wrapped pin.
+   */
   bool readValue() const;
 
-  inline bool pinNum() const { return num; }
+  /**
+   * @return GPIO number of the PIN.
+   */
+  inline int pinNum() const { return num; }
 
 private:
   boost::filesystem::path fsDir() const;
