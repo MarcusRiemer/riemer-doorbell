@@ -22,6 +22,10 @@ public:
   inline int pinNum() const { return num; }
 
 private:
+  void ensurePinEnabled();
+
+  boost::filesystem::path fsBaseDir() const;
+  boost::filesystem::path fsExportDir() const;
   boost::filesystem::path fsDir() const;
   boost::filesystem::path fsValue() const;
 
