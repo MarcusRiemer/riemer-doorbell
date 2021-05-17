@@ -5,6 +5,8 @@
 
 namespace fs = boost::filesystem;
 
+const std::string KnownChats::filename = "known_chats.txt";
+
 KnownChats::KnownChats(const TgBot::Bot &bot) : bot(bot) {
   std::ifstream fin("known_chats.txt");
   TelegramChatId id;
@@ -14,16 +16,19 @@ KnownChats::KnownChats(const TgBot::Bot &bot) : bot(bot) {
 }
 
 void KnownChats::add(TelegramChatId chatId) {
+  const std::lock_guard<std::mutex> lock(mutex);
   known.insert(chatId);
   save();
 }
 
 void KnownChats::remove(TelegramChatId chatId) {
+  const std::lock_guard<std::mutex> lock(mutex);
   known.erase(chatId);
   save();
 }
 
 void KnownChats::broadcast(const std::string &msg) const {
+  const std::lock_guard<std::mutex> lock(mutex);
   for (auto chatId : known) {
     bot.getApi().sendMessage(chatId, msg);
   }

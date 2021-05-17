@@ -7,6 +7,12 @@
 #include "gpiopin.h"
 #include "knownchats.h"
 
+/**
+ * Utility to extract a human readable display name from a message.
+ *
+ * @param message The message with a sender of interest.
+ * @return A human readable user identification.
+ */
 const std::string senderDisplayName(TgBot::Message::Ptr message) {
   if (message && message->from) {
     const auto sender = message->from;
@@ -22,6 +28,7 @@ const std::string senderDisplayName(TgBot::Message::Ptr message) {
   }
 }
 
+/** Name of environment variable for bot token */
 const char *ENV_TELEGRAM_BOT_TOKEN = "TELEGRAM_BOT_TOKEN";
 
 int main() {
@@ -68,7 +75,10 @@ int main() {
     bot.getApi().sendMessage(message->chat->id, msg.str());
   });
 
-  // Starting the polling for the GPIO pin
+  // Starting the polling for the GPIO pin. This runs in a separate thread
+  // because the telegram server seems to hog the main thread.
+  //
+  // TODO: Make this threadsafe.
   std::thread t([&knownChats, &bot, &pin]() {
     bool lastValue = pin.readValue();
     bool currentValue = lastValue;

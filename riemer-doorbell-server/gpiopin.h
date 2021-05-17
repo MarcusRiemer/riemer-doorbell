@@ -8,10 +8,17 @@
  */
 class GPIOPin {
 public:
+  /**
+   * Create a GPIO reader for the given number. May throw if the
+   * required PIN can't be accessed.
+   *
+   * @param num The number of the GPIO pin.
+   */
   GPIOPin(int num);
 
   /**
-   * @brief Reads the current value from the /sys filesystem
+   * Reads the current value from the /sys filesystem
+   *
    * @return State of the wrapped pin.
    */
   bool readValue() const;
@@ -22,6 +29,10 @@ public:
   inline int pinNum() const { return num; }
 
 private:
+  /**
+   * Checks whether the GPIO "folder" exists and attempts to instruct
+   * the kernel to create it. If this fails it throws an exception.
+   */
   void ensurePinEnabled();
 
   boost::filesystem::path fsBaseDir() const;
