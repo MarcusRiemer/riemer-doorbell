@@ -36,7 +36,8 @@ private:
   void ensurePinEnabled();
 
   boost::filesystem::path fsBaseDir() const;
-  boost::filesystem::path fsExportDir() const;
+  boost::filesystem::path fsExportFile() const;
+  boost::filesystem::path fsDirectionFile() const;
   boost::filesystem::path fsDir() const;
   boost::filesystem::path fsValue() const;
 
