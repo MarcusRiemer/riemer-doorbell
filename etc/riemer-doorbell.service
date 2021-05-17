@@ -3,8 +3,8 @@ Description=Riemer Doorbell
 After=network.target
 
 [Service]
-WorkingDirectory=/home/pi/riemer-doorbell/cpp/build-rpi
-ExecStart=/home/pi/riemer-doorbell/cpp/build-rpi/riemer-doorbell
+WorkingDirectory=/home/pi/riemer-doorbell/build-rpi
+ExecStart=/home/pi/riemer-doorbell/build-rpi/riemer-doorbell
 Restart=always
 RestartSec=5
 
