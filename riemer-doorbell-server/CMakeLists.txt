@@ -24,7 +24,12 @@ option(WITH_AZURE_EVENTHUB "Add support for Azure Event Hub" ON)
 set(optional_SOURCES)
 
 if(WITH_AZURE_EVENTHUB)
-    find_package(ProtonCpp REQUIRED)
+    find_package(ProtonCpp)
+
+    if(NOT ${ProtonCpp_FOUND})
+        MESSAGE(STATUS "Could not locate ProtonCpp, trusting its there ...")
+        set (ProtonCpp_LIBRARIES qpid-proton-cpp)
+    endif(NOT ${ProtonCpp_FOUND})
 
     add_definitions(-DWITH_AZURE_EVENTHUB)
 
