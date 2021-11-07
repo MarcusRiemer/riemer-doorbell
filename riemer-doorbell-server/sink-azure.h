@@ -4,6 +4,5 @@
 
 class SinkAzure {
 public:
-  SinkAzure(const std::string sasKeyName, const std::string sasKey,
-            const std::string namespaceName);
+  SinkAzure(const std::string sasKey);
 };

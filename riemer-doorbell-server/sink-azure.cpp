@@ -1,8 +1,9 @@
-#ifdef AZURE_SINK
+#ifdef WITH_AZURE_EVENTHUB
 
 #include "sink-azure.h"
 
 #include <iostream>
+#include <sstream>
 
 #include <proton/connection.hpp>
 #include <proton/connection_options.hpp>
@@ -19,53 +20,43 @@ class ProtonSimpleSend : public proton::messaging_handler {
 private:
   const std::string url;
   proton::sender sender;
-  int sent;
-  int confirmed;
-  int total;
 
 public:
-  ProtonSimpleSend(const std::string &s, int c)
-      : url(s), sent(0), confirmed(0), total(c) {}
+  ProtonSimpleSend(const std::string &s, int c) : url(s) {}
 
   void on_container_start(proton::container &c) override {
     sender = c.open_sender(url);
   }
 
-  void on_connection_open(proton::connection &c) override {
-    if (c.reconnected()) {
-      sent = confirmed; // Re-send unconfirmed messages after a reconnect
-    }
+  void on_sendable(proton::sender &s) override {}
+
+  void on_tracker_accept(proton::tracker &t) override {}
+
+  void sendDingDong() {
+    proton::message msg;
+    std::map<std::string, int> m;
+    m["test"] = 1;
+
+    msg.id();
+    msg.body(m);
+
+    sender.send(msg);
   }
-
-  void on_sendable(proton::sender &s) override {
-    while (s.credit() && sent < total) {
-      proton::message msg;
-      std::map<std::string, int> m;
-      m["sequence"] = sent + 1;
-
-      msg.id(sent + 1);
-      msg.body(m);
-
-      s.send(msg);
-      sent++;
-    }
-  }
-
-  void on_tracker_accept(proton::tracker &t) override {
-    confirmed++;
-
-    if (confirmed == total) {
-      std::cout << "all messages confirmed" << std::endl;
-      t.connection().close();
-    }
-  }
-
-  void on_transport_close(proton::transport &) override { sent = confirmed; }
 };
 
-SinkAzure::SinkAzure(const std::string sasKeyName, const std::string sasKey,
-                     const std::string namespaceName) {
-  ProtonSimpleSend send("", 1);
+SinkAzure::SinkAzure(const std::string sasKey) {
+  std::string sasKeyName("SendKey");
+  std::string namespaceName("riemer-doorbell-events");
+  std::string eventHubName("riemer-doorbell");
+
+  std::ostringstream urlStream;
+  urlStream << "amqps://" << sasKeyName << ":" << sasKey << "@" << namespaceName
+            << ".servicebus.windows.net/" << eventHubName;
+
+  std::string urlString = urlStream.str();
+  std::cout << "Azure EventHub URL: " << urlString << std::endl;
+
+  ProtonSimpleSend send(urlString, 1);
 }
 
 #endif
