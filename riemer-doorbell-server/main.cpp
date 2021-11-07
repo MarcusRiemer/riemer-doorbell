@@ -8,6 +8,9 @@
 /** Name of environment variable for bot token */
 const char *ENV_TELEGRAM_BOT_TOKEN = "TELEGRAM_BOT_TOKEN";
 
+/** Name of environment variable for GPIO pin */
+const char *ENV_GPIO_PIN = "GPIO_PIN";
+
 int main() {
   // Nothing helpful can be done without having a connection to Telegram
   const char *TELEGRAM_BOT_TOKEN = std::getenv(ENV_TELEGRAM_BOT_TOKEN);
@@ -16,14 +19,20 @@ int main() {
                              ENV_TELEGRAM_BOT_TOKEN + " is strictly required");
   }
 
-  const GPIOPin pin(2);
+  const char *GPIO_PIN = std::getenv(ENV_GPIO_PIN);
+  if (!GPIO_PIN) {
+    throw std::runtime_error(std::string("Environment variable ") +
+                             ENV_GPIO_PIN + " is strictly required");
+  }
+
+  const GPIOPin pin(std::stoi(GPIO_PIN));
 
   SinkTelegram sinkTelegram(TELEGRAM_BOT_TOKEN, pin);
 
   // Starting the polling for the GPIO pin. This runs in a separate thread
   // because the telegram server seems to hog the main thread.
   //
-  // TODO: Make this threadsafe.
+  // TODO: Make outputs & sends properly threadsafe.
   std::thread threadGPIO([&sinkTelegram, &pin]() {
     std::cout << "Started GPIO Thread" << std::endl;
 
