@@ -2,31 +2,8 @@
 #include <iostream>
 #include <thread>
 
-#include <tgbot/tgbot.h>
-
 #include "gpiopin.h"
-#include "knownchats.h"
-
-/**
- * Utility to extract a human readable display name from a message.
- *
- * @param message The message with a sender of interest.
- * @return A human readable user identification.
- */
-const std::string senderDisplayName(TgBot::Message::Ptr message) {
-  if (message && message->from) {
-    const auto sender = message->from;
-    if (sender->username != "") {
-      return sender->username;
-    } else if (sender->firstName != "") {
-      return sender->firstName;
-    } else {
-      return std::string("User ID ") + std::to_string(sender->id);
-    }
-  } else {
-    return "Broadcast";
-  }
-}
+#include "sink-telegram.h"
 
 /** Name of environment variable for bot token */
 const char *ENV_TELEGRAM_BOT_TOKEN = "TELEGRAM_BOT_TOKEN";
@@ -39,47 +16,17 @@ int main() {
                              ENV_TELEGRAM_BOT_TOKEN + " is strictly required");
   }
 
-  // Setting up the bot
-  TgBot::Bot bot(TELEGRAM_BOT_TOKEN);
-
-  KnownChats knownChats(bot);
   const GPIOPin pin(2);
 
-  bot.getEvents().onCommand("start", [&bot, &knownChats](
-                                         TgBot::Message::Ptr message) {
-    KnownChats::TelegramChatId chatId = message->chat->id;
-    std::cout << "User " << senderDisplayName(message) << " started the bot "
-              << "for chat " << chatId << std::endl;
-
-    knownChats.add(chatId);
-
-    bot.getApi().sendMessage(message->chat->id,
-                             "Türklingelnachrichten aktiviert");
-  });
-
-  bot.getEvents().onCommand("stop", [&bot,
-                                     &knownChats](TgBot::Message::Ptr message) {
-    KnownChats::TelegramChatId chatId = message->chat->id;
-    std::cout << "User " << senderDisplayName(message) << " removed the bot "
-              << "for chat " << chatId << std::endl;
-
-    knownChats.remove(chatId);
-
-    bot.getApi().sendMessage(message->chat->id,
-                             "Türklingelnachrichten deaktiviert");
-  });
-
-  bot.getEvents().onCommand("pin", [&bot, &pin](TgBot::Message::Ptr message) {
-    std::stringstream msg;
-    msg << "GPIO Pin #" << pin.pinNum() << " is " << pin.readValue();
-    bot.getApi().sendMessage(message->chat->id, msg.str());
-  });
+  SinkTelegram sinkTelegram(TELEGRAM_BOT_TOKEN, pin);
 
   // Starting the polling for the GPIO pin. This runs in a separate thread
   // because the telegram server seems to hog the main thread.
   //
   // TODO: Make this threadsafe.
-  std::thread t([&knownChats, &bot, &pin]() {
+  std::thread threadGPIO([&sinkTelegram, &pin]() {
+    std::cout << "Started GPIO Thread" << std::endl;
+
     bool lastValue = pin.readValue();
     bool currentValue = lastValue;
 
@@ -88,31 +35,27 @@ int main() {
       if (currentValue != lastValue) {
         std::cout << "Pin " << currentValue << std::endl;
         if (currentValue) {
-          knownChats.broadcast("Ding Dong");
+          std::cout << "Sending DingDong" << std::endl;
+
+          sinkTelegram.sendDingDong();
         }
       }
 
       // Don't hog up all resources of that poor Raspberry device
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      std::this_thread::sleep_for(std::chrono::milliseconds(30));
 
       lastValue = currentValue;
     }
   });
 
-  // Starting the Bot
+  // Starting the bot and running the main thread
   try {
-    std::cout << "Bot username: " << bot.getApi().getMe()->username
-              << std::endl;
+    auto threadTelegram = sinkTelegram.start();
 
-    // Inform the users that we are back
-    knownChats.broadcast("Türklingelbot meldet sich zum Dienst");
-
-    TgBot::TgLongPoll longPoll(bot);
-    while (true) {
-      longPoll.start();
-    }
+    threadTelegram.join();
+    threadGPIO.join();
   } catch (TgBot::TgException &e) {
-    std::cerr << "Unhandled Exception: " << e.what() << std::endl;
+    std::cerr << "Unhandled Telegram Exception: " << e.what() << std::endl;
   }
   return 0;
 }

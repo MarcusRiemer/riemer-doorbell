@@ -10,6 +10,7 @@ find_package(Threads REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(Boost COMPONENTS system filesystem REQUIRED)
 find_package(CURL)
+find_package(ProtonCpp)
 
 include_directories(/usr/local/include ${OPENSSL_INCLUDE_DIR} ${Boost_INCLUDE_DIR} ../tgbot-cpp/include)
 link_directories(../tgbot-cpp)
@@ -23,6 +24,16 @@ add_executable(riemer-doorbell
     main.cpp
     gpiopin.h gpiopin.cpp
     knownchats.h knownchats.cpp
+    sink.h sink.cpp
+    sink-telegram.h sink-telegram.cpp
+    sink-azure.h sink-azure.cpp
 )
 
-target_link_libraries(riemer-doorbell TgBot  ${CMAKE_THREAD_LIBS_INIT} ${OPENSSL_LIBRARIES} ${Boost_LIBRARIES} ${CURL_LIBRARIES})
+target_link_libraries(riemer-doorbell
+    TgBot
+    ${CMAKE_THREAD_LIBS_INIT}
+    ${OPENSSL_LIBRARIES}
+    ${Boost_LIBRARIES}
+    ${CURL_LIBRARIES}
+    ${ProtonCpp_LIBRARIES}
+)

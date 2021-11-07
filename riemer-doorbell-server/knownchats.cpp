@@ -35,6 +35,8 @@ void KnownChats::broadcast(const std::string &msg) const {
 }
 
 void KnownChats::save() {
+  const std::lock_guard<std::mutex> lock(mutex);
+
   std::ofstream fout("known_chats.txt");
   std::copy(known.begin(), known.end(),
             std::ostream_iterator<TelegramChatId>(fout, "\n"));
