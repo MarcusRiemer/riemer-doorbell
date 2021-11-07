@@ -9,7 +9,7 @@
 #include "knownchats.h"
 #include "sink.h"
 
-class SinkTelegram : Sink {
+class SinkTelegram : public Sink {
 
 private:
   TgBot::Bot _bot;

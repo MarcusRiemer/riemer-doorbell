@@ -16,13 +16,13 @@
 
 // Sending Proton Messabes based on
 // https://qpid.apache.org/releases/qpid-proton-0.33.0/proton/cpp/api/simple_send_8cpp-example.html
-class ProtonSimpleSend : public proton::messaging_handler {
+class ProtonSimpleSender : public proton::messaging_handler {
 private:
   const std::string url;
   proton::sender sender;
 
 public:
-  ProtonSimpleSend(const std::string &s, int c) : url(s) {}
+  ProtonSimpleSender(const std::string &s, int c) : url(s) {}
 
   void on_container_start(proton::container &c) override {
     sender = c.open_sender(url);
@@ -45,6 +45,8 @@ public:
 };
 
 SinkAzure::SinkAzure(const std::string sasKey) {
+  // Endpoint=sb://riemer-doorbell-events.servicebus.windows.net/;SharedAccessKeyName=SendKey;SharedAccessKey=R8JH+isl1FQ8UlP0jLLxlsi2R9T1V+EPIEvkAYzRRec=
+
   std::string sasKeyName("SendKey");
   std::string namespaceName("riemer-doorbell-events");
   std::string eventHubName("riemer-doorbell");
@@ -56,7 +58,9 @@ SinkAzure::SinkAzure(const std::string sasKey) {
   std::string urlString = urlStream.str();
   std::cout << "Azure EventHub URL: " << urlString << std::endl;
 
-  ProtonSimpleSend send(urlString, 1);
+  ProtonSimpleSender send(urlString, 1);
 }
+
+void SinkAzure::sendDingDong() {}
 
 #endif

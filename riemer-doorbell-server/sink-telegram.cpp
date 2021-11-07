@@ -53,7 +53,9 @@ SinkTelegram::SinkTelegram(const std::string &botToken, const GPIOPin &pin)
 }
 
 std::thread SinkTelegram::start() {
-  std::cout << "Bot username: " << _bot.getApi().getMe()->username << std::endl;
+  std::ostringstream tmpOut;
+  tmpOut << "Bot username: " << _bot.getApi().getMe()->username;
+  std::cout << tmpOut.str() << std::endl;
 
   // Inform the users that we are back
   _knownChats.broadcast("Türklingelbot meldet sich zum Dienst");
