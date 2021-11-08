@@ -21,8 +21,8 @@ const std::string senderDisplayName(TgBot::Message::Ptr message) {
   }
 }
 
-SinkTelegram::SinkTelegram(const std::string &botToken, const GPIOPin &pin)
-    : _bot(botToken), _knownChats(_bot), _pin(pin) {
+SinkTelegram::SinkTelegram(const std::string &botToken)
+    : _bot(botToken), _knownChats(_bot) {
   _bot.getEvents().onCommand("start", [this](TgBot::Message::Ptr message) {
     KnownChats::TelegramChatId chatId = message->chat->id;
     std::cout << "User " << senderDisplayName(message) << " started the bot "
@@ -45,14 +45,15 @@ SinkTelegram::SinkTelegram(const std::string &botToken, const GPIOPin &pin)
                               "Türklingelnachrichten deaktiviert");
   });
 
-  _bot.getEvents().onCommand("pin", [this](TgBot::Message::Ptr message) {
+  /*_bot.getEvents().onCommand("pin", [this](TgBot::Message::Ptr message) {
     std::stringstream msg;
     msg << "GPIO Pin #" << _pin.pinNum() << " is " << _pin.readValue();
     _bot.getApi().sendMessage(message->chat->id, msg.str());
-  });
+  });*/
 }
 
-std::thread SinkTelegram::start() {
+std::optional<std::thread>
+SinkTelegram::start(const std::atomic<bool> &shutdownRequested) {
   std::ostringstream tmpOut;
   tmpOut << "Bot username: " << _bot.getApi().getMe()->username;
   std::cout << tmpOut.str() << std::endl;
@@ -60,12 +61,16 @@ std::thread SinkTelegram::start() {
   // Inform the users that we are back
   _knownChats.broadcast("Türklingelbot meldet sich zum Dienst");
 
-  std::thread t([this]() {
-    std::cout << "Started Telegram Thread" << std::endl;
-    TgBot::TgLongPoll longPoll(_bot);
+  std::thread t([this, &shutdownRequested]() {
+    try {
+      std::cout << "Started Telegram Thread" << std::endl;
+      TgBot::TgLongPoll longPoll(_bot);
 
-    while (true) {
-      longPoll.start();
+      while (!shutdownRequested) {
+        longPoll.start();
+      }
+    } catch (TgBot::TgException &e) {
+      std::cerr << "Unhandled Telegram Exception: " << e.what() << std::endl;
     }
   });
 

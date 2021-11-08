@@ -1,7 +1,11 @@
+#include <atomic>
 #include <chrono>
 #include <iostream>
+#include <optional>
 #include <thread>
 #include <vector>
+
+#include <signal.h>
 
 #include "gpiopin.h"
 #include "sink-azure.h"
@@ -16,78 +20,123 @@ const char *ENV_GPIO_PIN = "GPIO_PIN";
 /** Name of environment variable for Azure SAS key pin */
 const char *ENV_AZURE_SAS_KEY = "AZURE_SAS_KEY";
 
+/** Name of environment variable for debug run */
+const char *ENV_DEBUG_EMIT = "DEBUG_EMIT";
+
+/** Communicate shutdown requests to threads */
+std::atomic_bool shutdown_requested = false;
+
+// This seems to be harder on ARM than I hoped for, so lets live
+// static_assert(std::atomic_bool::is_always_lock_free);
+
+/**
+ * Read a value from the environment and convert it to the desired type.
+ */
+template <typename T>
+T parseEnv(const char *varName, std::optional<T> fallback = std::nullopt) {
+  const char *value = std::getenv(varName);
+  if (!value) {
+    if (!fallback.has_value()) {
+      throw std::runtime_error(std::string("Environment variable ") + varName +
+                               " is strictly required");
+    } else {
+      return fallback.value();
+    }
+  }
+
+  std::stringstream conv;
+  conv << value;
+
+  T result;
+  conv >> result;
+
+  return result;
+}
+
+void sigintHandler(int) { shutdown_requested = true; }
+
 int main() {
-  // Nothing helpful can be done without having a connection to Telegram
-  const char *TELEGRAM_BOT_TOKEN = std::getenv(ENV_TELEGRAM_BOT_TOKEN);
-  if (!TELEGRAM_BOT_TOKEN) {
-    throw std::runtime_error(std::string("Environment variable ") +
-                             ENV_TELEGRAM_BOT_TOKEN + " is strictly required");
+  signal(SIGINT, sigintHandler);
+  signal(SIGTERM, sigintHandler);
+
+  // The sinks that a bell should go out to
+  std::vector<std::shared_ptr<Sink>> allSinks;
+
+  // Is there a way to run telegram?
+  const std::string TELEGRAM_BOT_TOKEN =
+      parseEnv<std::string>(ENV_TELEGRAM_BOT_TOKEN, std::optional(""));
+
+  if (TELEGRAM_BOT_TOKEN != "") {
+    allSinks.push_back(std::make_shared<SinkTelegram>(TELEGRAM_BOT_TOKEN));
   }
-
-  const char *GPIO_PIN = std::getenv(ENV_GPIO_PIN);
-  if (!GPIO_PIN) {
-    throw std::runtime_error(std::string("Environment variable ") +
-                             ENV_GPIO_PIN + " is strictly required");
-  }
-
-  const GPIOPin pin(std::stoi(GPIO_PIN));
-
-  SinkTelegram sinkTelegram(TELEGRAM_BOT_TOKEN, pin);
-
-  std::vector<Sink *> allSinks;
-  allSinks.push_back(&sinkTelegram);
 
 #ifdef WITH_AZURE_EVENTHUB
-  const char *AZURE_SAS_KEY = std::getenv(ENV_AZURE_SAS_KEY);
-
-  if (!AZURE_SAS_KEY) {
-    throw std::runtime_error(std::string("Environment variable ") +
-                             ENV_AZURE_SAS_KEY + " is strictly required");
+  const std::string AZURE_SAS_KEY = parseEnv<std::string>(ENV_AZURE_SAS_KEY);
+  if (AZURE_SAS_KEY != "") {
+    allSinks.push_back(std::make_shared<SinkAzure>(AZURE_SAS_KEY));
   }
-
-  SinkAzure sinkAzure(AZURE_SAS_KEY);
-  allSinks.push_back(&sinkAzure);
-
 #endif
+
+  bool debugEmit = parseEnv<bool>(ENV_DEBUG_EMIT, std::optional(false));
 
   // Starting the polling for the GPIO pin. This runs in a separate thread
   // because the telegram server seems to hog the main thread.
   //
   // TODO: Make outputs & sends properly threadsafe.
-  std::thread threadGPIO([&allSinks, &pin]() {
-    std::cout << "Started GPIO Thread" << std::endl;
+  if (!debugEmit) {
+    int GPIO_PIN = parseEnv<int>(ENV_GPIO_PIN);
+    const GPIOPin pin(GPIO_PIN);
 
-    bool lastValue = pin.readValue();
-    bool currentValue = lastValue;
+    std::thread threadGPIO([&allSinks, &pin]() {
+      std::cout << "Started GPIO Thread" << std::endl;
 
-    while (true) {
-      currentValue = pin.readValue();
-      if (currentValue != lastValue) {
-        std::cout << "Pin " << currentValue << std::endl;
-        if (currentValue) {
-          std::cout << "Sending DingDong" << std::endl;
+      bool lastValue = pin.readValue();
+      bool currentValue = lastValue;
 
-          for (Sink *s : allSinks) {
-            s->sendDingDong();
+      while (!shutdown_requested) {
+        currentValue = pin.readValue();
+        if (currentValue != lastValue) {
+          std::cout << "Pin " << currentValue << std::endl;
+          if (currentValue) {
+            std::cout << "Sending DingDong" << std::endl;
+
+            for (auto s : allSinks) {
+              s->sendDingDong();
+            }
           }
         }
+
+        // Don't hog up all resources of that poor Raspberry device
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+
+        lastValue = currentValue;
       }
 
-      // Don't hog up all resources of that poor Raspberry device
-      std::this_thread::sleep_for(std::chrono::milliseconds(30));
+      std::cout << "GPIO Thread ended" << std::endl;
+    });
 
-      lastValue = currentValue;
+    std::vector<std::thread> threads;
+
+    // Starting threads for all sinks that require them
+    for (auto s : allSinks) {
+      auto t = s->start(shutdown_requested);
+      if (t) {
+        // Threads must be owned by the vector, so we move them there
+        threads.push_back(std::move(t.value()));
+      }
     }
-  });
 
-  // Starting the bot and running the main thread
-  try {
-    auto threadTelegram = sinkTelegram.start();
+    // Wait for all threads
+    for (auto &t : threads) {
+      t.join();
+    }
 
-    threadTelegram.join();
-    threadGPIO.join();
-  } catch (TgBot::TgException &e) {
-    std::cerr << "Unhandled Telegram Exception: " << e.what() << std::endl;
+    std::cout << "Proper shutdown, goodbye!" << std::endl;
+  } else {
+    for (auto s : allSinks) {
+      s->sendDingDong();
+    }
   }
+
   return 0;
 }
